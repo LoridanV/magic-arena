@@ -782,7 +782,7 @@ const TIME_SLOTS = [
   "14:00", "15:00", "16:00", "17:00", "18:00", "19:00",
   "20:00", "21:00", "22:00", "23:00",
 ];
-const RESERVED = new Set(["10:00", "17:00", "18:00", "20:00"]);
+const RESERVED = new Set<string>([]);
 
 function priceFor(time: string, duration: number, date: Date | null) {
   const h = parseInt(time);
@@ -806,6 +806,19 @@ function Booking() {
   const [confirmed, setConfirmed] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [reservedSlots, setReservedSlots] = useState<Set<string>>(new Set());
+
+  // Fetch sloturi ocupate când se schimbă data
+  useEffect(() => {
+    if (!date) return;
+    const dateStr = date.toISOString().split("T")[0];
+    fetch(`${API_URL}/api/bookings/slots?field_id=1&date=${dateStr}`)
+      .then(r => r.json())
+      .then((slots: {start_time: string}[]) => {
+        setReservedSlots(new Set(slots.map(s => s.start_time.substring(0, 5))));
+      })
+      .catch(() => {});
+  }, [date]);
 
   const handleConfirm = async () => {
     setBookingLoading(true);
@@ -973,7 +986,7 @@ function Booking() {
                   <Label className="mt-5 sm:mt-8">{t.booking.timeSlots}</Label>
                   <div className="mt-3 grid grid-cols-4 gap-1 sm:gap-2">
                     {TIME_SLOTS.map((tm) => {
-                      const reserved = RESERVED.has(tm);
+                      const reserved = reservedSlots.has(tm);
                       const active = time === tm;
                       return (
                         <button
@@ -1190,15 +1203,34 @@ function SummaryRow({
 
 function Availability() {
   const { t } = useT();
-  const grid: ("free" | "busy" | "hot")[][] = [
-    ["free", "free", "busy", "free", "free", "hot", "hot"],
-    ["free", "busy", "free", "free", "hot", "hot", "hot"],
-    ["busy", "free", "free", "busy", "hot", "free", "free"],
-    ["free", "free", "busy", "free", "hot", "hot", "free"],
-    ["busy", "busy", "free", "free", "hot", "hot", "busy"],
-    ["free", "free", "free", "busy", "free", "hot", "hot"],
-  ];
   const hours = ["12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
+  const [reservedWeekly, setReservedWeekly] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/bookings/weekly`)
+      .then(r => r.json())
+      .then((bookings: {booking_date: string, start_time: string}[]) => {
+        const set = new Set(bookings.map(b => `${b.booking_date}_${b.start_time.substring(0,5)}`));
+        setReservedWeekly(set);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Generăm gridul dinamic bazat pe rezervările reale
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekDays = Array.from({length: 7}, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d;
+  });
+
+  const grid: ("free" | "busy")[][] = hours.map(hour => 
+    weekDays.map(day => {
+      const dateStr = day.toISOString().split("T")[0];
+      return reservedWeekly.has(`${dateStr}_${hour}`) ? "busy" : "free";
+    })
+  );
 
   return (
     <section id="availability" className="relative mx-auto max-w-7xl px-6 py-32">
@@ -1233,8 +1265,6 @@ function Availability() {
                   const cls =
                     status === "free"
                       ? "bg-primary/15 border-primary/30 text-primary hover:bg-primary/25"
-                      : status === "hot"
-                      ? "bg-amber-400/15 border-amber-400/30 text-amber-300 hover:bg-amber-400/25"
                       : "bg-white/[0.02] border-border text-muted-foreground/50";
                   return (
                     <motion.button
@@ -1248,12 +1278,10 @@ function Availability() {
                         className={`absolute right-2 top-2 size-1.5 rounded-full ${
                           status === "free"
                             ? "bg-primary animate-pulse"
-                            : status === "hot"
-                            ? "bg-amber-400 animate-pulse"
                             : "bg-muted-foreground/40"
                         }`}
                       />
-                      {status === "busy" ? "—" : status === "hot" ? t.avail.limited : t.avail.open}
+                      {status === "busy" ? "—" : t.avail.open}
                     </motion.button>
                   );
                 })}
