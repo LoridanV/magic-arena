@@ -1187,14 +1187,7 @@ function SummaryRow({
 
 function Availability() {
   const { t } = useT();
-  const grid: ("free" | "busy" | "hot")[][] = [
-    ["free", "free", "busy", "free", "free", "hot", "hot"],
-    ["free", "busy", "free", "free", "hot", "hot", "hot"],
-    ["busy", "free", "free", "busy", "hot", "free", "free"],
-    ["free", "free", "busy", "free", "hot", "hot", "free"],
-    ["busy", "busy", "free", "free", "hot", "hot", "busy"],
-    ["free", "free", "free", "busy", "free", "hot", "hot"],
-  ];
+  const grid: ("free" | "busy")[][] = Array(6).fill(null).map(() => Array(7).fill("free"));
   const hours = ["12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
   return (
